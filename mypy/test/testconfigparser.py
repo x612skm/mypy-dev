@@ -4,7 +4,7 @@ from mypy.config_parser import parse_config_file
 from mypy.options import Options
 
 
-def test_parse_files_normalization():
+def test_parse_files_normalization() -> None:
     options = Options()
     config = """
     [mypy]
@@ -20,7 +20,7 @@ def test_parse_files_normalization():
     assert options.files == ["file1.py", "file2.py", "file3.py"]
 
 
-def test_parse_files_with_empty_strings():
+def test_parse_files_with_empty_strings() -> None:
     options = Options()
     config = """
     [mypy]
