@@ -1,168 +1,50 @@
-import os
-import tempfile
-from unittest import TestCase, main
-
+import pytest
 from mypy.config_parser import parse_config_file
 from mypy.options import Options
 
 
-class TestConfigParser(TestCase):
-    def test_parse_config_file_with_single_file(self) -> None:
-        """A single file should be correctly parsed."""
-        with tempfile.TemporaryDirectory() as tmpdirname:
-            config_path = os.path.join(tmpdirname, "test_config.ini")
+@pytest.mark.parametrize(
+    "config_content, expected_files, expected_exception",
+    [
+        # Files listed without spaces
+        ("[mypy]\nfiles =file1.py,file2.py,file3.py", ["file1.py", "file2.py", "file3.py"], None),
 
-            with open(config_path, "w") as f:
-                f.write(
-                    """
-                    [mypy]
-                    files = file1.py
-                    """
-                )
+        # Files listed with adequate space
+        ("[mypy]\nfiles =file1.py, file2.py, file3.py", ["file1.py", "file2.py", "file3.py"], None),
 
-            options = Options()
+        # Files with extra spaces
+        ("[mypy]\nfiles =  file1.py ,   file2.py  ,   file3.py", ["file1.py", "file2.py", "file3.py"], None),
 
-            parse_config_file(options, lambda: None, config_path, stdout=None, stderr=None)
+        # Files listed with a trailing comma
+        ("[mypy]\nfiles =  file1.py, file2.py, file3.py,", ["file1.py", "file2.py", "file3.py"], None),
 
-            self.assertEqual(options.files, ["file1.py"])
+        # Empty files key
+        ("[mypy]\nfiles =", [], None),
 
-    def test_parse_config_file_with_no_spaces(self) -> None:
-        """Files listed without spaces should be correctly parsed."""
-        with tempfile.TemporaryDirectory() as tmpdirname:
-            config_path = os.path.join(tmpdirname, "test_config.ini")
+        # Files key with only a comma
+        ("[mypy]\nfiles = ,", None, ValueError),
 
-            with open(config_path, "w") as f:
-                f.write(
-                    """
-                    [mypy]
-                    files =file1.py,file2.py,file3.py
-                    """
-                )
+        # Mixed valid and invalid filenames
+        ("[mypy]\nfiles = file1.py, , , file2.py", None, ValueError),
 
-            options = Options()
+        # Files listed with multiple trailing comma
+        ("[mypy]\nfiles =  file1.py, file2.py, file3.py,", None, ValueError),
 
-            parse_config_file(options, lambda: None, config_path, stdout=None, stderr=None)
+        # Newlines between file entries
+        ("[mypy]\nfiles = file1.py,\nfile2.py,\nfile3.py", ["file1.py", "file2.py", "file3.py"], None),
+    ]
+)
+def test_parse_config_file(tmp_path, config_content, expected_files, expected_exception):
+    """Parameterized test for parse_config_file handling various configurations."""
+    config_path = tmp_path / "test_config.ini"
+    config_path.write_text(config_content)
 
-            self.assertEqual(options.files, ["file1.py", "file2.py", "file3.py"])
+    options = Options()
 
-    def test_parse_config_file_with_extra_spaces(self) -> None:
-        """Files with extra spaces should be correctly parsed."""
-        with tempfile.TemporaryDirectory() as tmpdirname:
-            config_path = os.path.join(tmpdirname, "test_config.ini")
-
-            with open(config_path, "w") as f:
-                f.write(
-                    """
-                    [mypy]
-                    files =  file1.py ,   file2.py  ,   file3.py
-                    """
-                )
-
-            options = Options()
-
-            parse_config_file(options, lambda: None, config_path, stdout=None, stderr=None)
-
-            self.assertEqual(options.files, ["file1.py", "file2.py", "file3.py"])
-
-    def test_parse_config_file_with_empty_files_key(self) -> None:
-        """An empty files key should result in an empty list."""
-        with tempfile.TemporaryDirectory() as tmpdirname:
-            config_path = os.path.join(tmpdirname, "test_config.ini")
-
-            with open(config_path, "w") as f:
-                f.write(
-                    """
-                    [mypy]
-                    files =
-                    """
-                )
-
-            options = Options()
-
-            parse_config_file(options, lambda: None, config_path, stdout=None, stderr=None)
-
-            self.assertEqual(options.files, [])
-
-    def test_parse_config_file_with_only_comma(self) -> None:
-        """A files key with only a comma should raise an error."""
-        with tempfile.TemporaryDirectory() as tmpdirname:
-            config_path = os.path.join(tmpdirname, "test_config.ini")
-
-            with open(config_path, "w") as f:
-                f.write(
-                    """
-                    [mypy]
-                    files = ,
-                    """
-                )
-
-            options = Options()
-
-            with self.assertRaises(ValueError) as cm:
-                parse_config_file(options, lambda: None, config_path, stdout=None, stderr=None)
-
-            self.assertIn("Invalid config", str(cm.exception))
-
-    def test_parse_config_file_with_only_whitespace(self) -> None:
-        """A files key with only whitespace should result in an empty list."""
-        with tempfile.TemporaryDirectory() as tmpdirname:
-            config_path = os.path.join(tmpdirname, "test_config.ini")
-
-            with open(config_path, "w") as f:
-                f.write(
-                    """
-                    [mypy]
-                    files =
-                    """
-                )
-
-            options = Options()
-
-            parse_config_file(options, lambda: None, config_path, stdout=None, stderr=None)
-
-            self.assertEqual(options.files, [])
-
-    def test_parse_config_file_with_mixed_valid_and_invalid_entries(self) -> None:
-        """Mix of valid and invalid filenames should raise an error."""
-        with tempfile.TemporaryDirectory() as tmpdirname:
-            config_path = os.path.join(tmpdirname, "test_config.ini")
-
-            with open(config_path, "w") as f:
-                f.write(
-                    """
-                    [mypy]
-                    files = file1.py, , , file2.py
-                    """
-                )
-
-            options = Options()
-
-            with self.assertRaises(ValueError) as cm:
-                parse_config_file(options, lambda: None, config_path, stdout=None, stderr=None)
-
-            self.assertIn("Invalid config", str(cm.exception))
-
-    def test_parse_config_file_with_newlines_between_files(self) -> None:
-        """Newlines between file entries should be correctly handled."""
-        with tempfile.TemporaryDirectory() as tmpdirname:
-            config_path = os.path.join(tmpdirname, "test_config.ini")
-
-            with open(config_path, "w") as f:
-                f.write(
-                    """
-                    [mypy]
-                    files = file1.py,
-                            file2.py,
-                            file3.py
-                    """
-                )
-
-            options = Options()
-
-            parse_config_file(options, lambda: None, config_path, stdout=None, stderr=None)
-
-            self.assertEqual(options.files, ["file1.py", "file2.py", "file3.py"])
-
-
-if __name__ == "__main__":
-    main()
+    if expected_exception:
+        with pytest.raises(expected_exception) as exc_info:
+            parse_config_file(options, lambda: None, str(config_path), stdout=None, stderr=None)
+        assert "Invalid config" in str(exc_info.value)
+    else:
+        parse_config_file(options, lambda: None, str(config_path), stdout=None, stderr=None)
+        assert options.files == expected_files
